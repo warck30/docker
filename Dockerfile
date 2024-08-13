@@ -1,4 +1,4 @@
-FROM alpine:latest
+FROM alpine:3.20
 
 COPY --from=cpp-app /usr/local/bin/cpp_app /usr/local/bin/cpp_app
 
