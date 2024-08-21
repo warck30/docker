@@ -1,13 +1,18 @@
 # docker
 ## **Репозиторий  с  заданием  для  курса  "Docker"**
 
-> *Цель работы – создвть Dockerfile для раздельной сборки софта и для создания контейнера, где этот софт дальше будет запускаться.*
+> *Цель работы – создать Dockerfile для раздельной сборки софта и для создания контейнера, где этот софт дальше будет запускаться.*
 
 ## Ход работы:
 
- 1. Написание Dockerfile для сборки C++ приложения.
- 2. Написание Dockerfile для сборки Go приложения.
- 3. Написание Dockerfile для финального образа, который позволяет выбирать запускаемое приложение.
+ 1. Этап 1. Сборка c++ приложения
+ 2. Этап 2. Сборка go приложения
+ 3. Этап 3. Объединение в единый образ
+ 
+ ### Описание проекта.
+ 
+Реализована многоэтапная сборка приложения в едином Dockerfile
+При запуске контейнера появляется окно выбора желаемого приложения 
  
  ### 1. C++ приложение.
  
@@ -21,28 +26,16 @@ return  0;
 }
  ```
  
-Для сборки приложения напишем Dockerfile
-Для сборки используем образ gcc:10.3 и alpine для запуска бинарника.
+Для компиляции бинарного файла используем образ gcc:10.3
 
 ```Dockerfile
-FROM gcc:10.3 as builder
+FROM  gcc:10.3  AS  builder_cpp
 
-WORKDIR /app
+WORKDIR  /src
 
-COPY main.cpp .
+COPY  cpp-app/main.cpp  . 
 
-RUN g++ -o cpp_app main.cpp -static
-
-FROM alpine:3.20
-
-COPY --from=builder /app/cpp_app /usr/local/bin/cpp_app
-
-CMD ["cpp_app"]
-```
-
-Билдим образ C++ программы
-```sh
-# docker build -t cpp-app -f cpp-app/Dockerfile cpp-app/
+RUN  g++  -o  cpp_app  main.cpp  -static
 ```
 
 ### 2. Go приложение.
@@ -56,61 +49,67 @@ func  main() {
 fmt.Println("Hello from Go!")
 }
 ```
-
-Напишем Dockerfile для сборки программы.
-Для сборки используем образ golang:1.18 и alpine для запуска бинарника.
+Для компиляции бинарного файла используем образ golang:1.18
 
 ```Dockerfile
-FROM  golang:1.18  as  builder
+FROM golang:1.18 AS builder_go
 
-WORKDIR  /app
+WORKDIR /src
 
-COPY  main.go  .
+COPY go-app/main.go .
 
-RUN  go  build  -o  go_app  main.go
-
-FROM  alpine:3.20
-
-COPY  --from=builder  /app/go_app  /usr/local/bin/go_app
-
-CMD  ["go_app"]
+RUN go build -o go_app main.go
 ```
 
-Билдим образ Go программы
-```sh
-# docker build -t go-app -f go-app/Dockerfile go-app/
-```
-### 3. Сборка финального образа
+### 3. Итоговая сборка
 
 Сборка финального образа
 
 ```Dockerfile
-FROM  alpine:3.20
+FROM alpine:3.20
 
-COPY  --from=cpp-app  /usr/local/bin/cpp_app  /usr/local/bin/cpp_app
+WORKDIR /app
 
-COPY  --from=go-app  /usr/local/bin/go_app  /usr/local/bin/go_app
+COPY --from=builder_cpp /src/cpp_app /app/
 
-ENTRYPOINT  []
+COPY --from=builder_go /src/go_app /app/
+
+ENTRYPOINT ["sh", "-c"]
+
+CMD ["echo 'Выберите приложение: cpp или go' && \
+	read APP && \
+	if [ \"$APP\" = \"cpp\" ]; \
+	then exec /app/cpp_app; \
+	elif [ \"$APP\" = \"go\" ]; \
+	then exec /app/go_app; \
+	else echo 'Неверный выбор'; fi"]
 ```
-После сборки вторичных образов соберем главный образ
+
+Сборка нашего образа выполним командой
 
 ```sh
-# docker build -t combined-app .
+# docker build -t [image_name] .
 ```
 
 ### 4. Запускаем Hello-World
 
-Для запуска наших бинарей в контейнере выполним команду
+Для запуска нашего контейнера выполним команду
 
 ```sh
-# docker run --rm combined-app /usr/local/bin/cpp_app
-# docker run --rm combined-app /usr/local/bin/go_app
+# docker run --rm --name [container_name] [image_name]
 ```
 
-В итоге, в терминале отобразится вывод программы в зависимости от нашего вывода.
+В итоге, в терминале отобразится предложение ввода:
+
+```sh
+Выберите приложение: cpp или go
+```
+В зависимости от выбора вывод будет: 
 
 > Hello from C++!
+
+или
+
 > Hello from Go!
 ---
 
